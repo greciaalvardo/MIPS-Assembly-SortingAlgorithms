@@ -1,0 +1,388 @@
+# Authors: Grecia Alvarado, Johnny Ong, Rida Siddiqui
+# Date: May 18, 2021
+# Description: Final Project: Sorting Algorithm
+# User selects what type of sorting algorithm to use and gives the program
+# an array of integers. The array is sorted by lowest to highest with the
+# lowest value in the lowest address.
+# The following sorted algorithms are available
+# 1. Selection Sort
+# 2. Bubble sort
+# 3. InsertionSort
+
+# Some notes:
+# $s0 = array
+# $s1 = size
+# $s2 = size * 4 (storage for array size)
+# $s7 = selection input
+# $a1 = base address of array (Should use this during function call)
+# $a2 = size (Also use this during function call), size = size - 1 because a[size] = out of range
+
+.data
+welcome_msg: .asciiz "Welcome to our sorting program. Which algorithm would you like to sort by:\n"
+option1: .asciiz "1. Selection Sort\n"
+option2: .asciiz "2. Bubble Sort\n"
+option3: .asciiz "3. Insertion Sort\n"
+
+size_msg: .asciiz "Enter the size of your array: "
+input_msg: .asciiz "Enter an integer: "
+
+invalid_input_msg: .asciiz "The value you inputted is invalid. Restart the program and try again"
+
+stringInput: .space 30
+error: .asciiz "The input you've entered contains a character. Restart and try again."
+final: .asciiz "\nSorted array:\n"
+
+.text
+main:
+	# This section is to print out all of our welcoming messages
+	la $a0, welcome_msg 	# print(welcome_msg)
+	li $v0, 4
+	syscall
+	
+	la $a0, option1		# print(option1)
+	li $v0, 4
+	syscall
+	
+	la $a0, option2		# print(option2)
+	li $v0, 4
+	syscall
+	
+	la $a0, option3		# print(option3)
+	li $v0, 4
+	syscall
+	
+	# User decides what type of sorting algorithm to use
+	li $v0, 8			# accept user input
+	la $a0, stringInput		# save string into string address
+	la $a1, 30			# 30 = buffer
+	syscall
+	
+	la $t0, stringInput		# load address of string into $t0
+	li $t3, 0			# $t3 = 0 (using $t3 as i)
+	
+	jal verify1
+	move $a0, $v0
+	
+	# Check if the user choice input is between 1 and 3
+	ble $a0, 0, input_validity_check	# if $a0 <= 0
+	bgt $a0, 3, input_validity_check	# if $a0 > 3
+	move $s7, $a0 				#move $a0 into $s7 because $a0 will be rewritten
+	
+	# Ask for size
+	la $a0, size_msg
+	li $v0, 4
+	syscall
+	
+	# Read size input
+	li $v0, 8				# read string input
+	la $a0, stringInput			# save into stringInput address
+	la $a1, 30				# buffer = 30
+	syscall
+	
+	la $t0, stringInput			# prep to verify
+	li $t3, 0				# counter = 0
+	jal verify1
+	move $s1, $v0				# $s1 = size
+	ble $s1, 0, input_validity_check	# size should be greater than 0
+	
+	# Create Dynamic Array
+	sll $s2, $s1, 2				# $s2 = size * 4
+	move $a0, $s2				# $a0=size in bytes
+	li $v0, 9				# 9 is syscall for dynamic memory
+	syscall
+	move $s0, $v0				# $s0 = array
+	
+	li $t1, 0				# $t1 = 0 (Using $t1 as i)
+	dynamic_array_input_loop:
+		beq $t1, $s1, dynamic_array_exit #reminder: $t1=i, $s1=size
+		
+		# Ask for input
+		la $a0, input_msg
+		li $v0, 4
+		syscall
+
+		# Read element input
+		li $v0, 8			# accept string input
+		la $a0, stringInput		# save into string address
+		la $a1, 30			# buffer = 30
+		syscall
+		la $t0, stringInput		# load address of string
+		li $t3, 0			# reset counter
+		jal verify1
+		move $t2, $v0
+		
+		sll $t3, $t1, 2			# $t3 = i * 4 (used for offset)
+		add $s3, $s0, $t3		# $s3 = new offset address
+		sw $t2, 0($s3)			# save element into offset address
+		
+		addi $t1, $t1, 1		# i++  
+		
+		j dynamic_array_input_loop
+		
+	dynamic_array_exit:
+		move $a1, $s0		# $a1 = array
+		move $a2, $s1		# $a2 = size
+		addi $a2, $a2, -1	# size = size - 1 (To prevent going into empty address)
+		
+		# Based on what sorting algorithm user wants, jump to appropriate function.
+		# User choice is currently stored in $t0
+		beq $s7, 1, selection_sort
+		beq $s7, 2, bubble_sort
+		beq $s7, 3, insertion_sort
+
+exit:
+	# Exit the program
+	li $v0, 10
+	syscall
+
+# If the user has inputted an incorrect choice for the main menu, output an error message and exit program
+input_validity_check:
+	la $a0, invalid_input_msg
+	li $v0, 4
+	syscall
+	
+	j exit
+
+# code written by Johnny Ong
+selection_sort:
+# a1 = base address of array
+# a2 = size
+	# push items onto stack
+	addi $sp, $sp, -40
+	sw $s0, 36($sp)
+	sw $s1, 32($sp)
+	sw $s2, 28($sp)
+	sw $t0, 24($sp)
+	sw $t1, 20($sp)
+	sw $t2, 16($sp)
+	sw $t3, 12($sp)
+	sw $t4, 8($sp)
+	sw $t5, 4($sp)
+	sw $t6, 0($sp)
+
+	li $t0, 0		# $t0 = 0 (using $t0 as i)
+	for_i_loop:
+		bgt $t0, $a2, end_selection_sort_loop	# for (int i = 0; i < size; i++)
+		
+		sll $t1, $t0, 2		# $t1 = i * 4 (used for offset)
+		add $s0, $a1, $t1	# $s0 = new offset address
+		lw $t2, 0($s0)		# $t2 = a[i] (original minumum value but will be updated for new minumums)
+		
+		move $t3, $t0		# $t3 = $t0 (j = i)
+		for_j_loop:
+			bgt $t3, $a2, selection_sort_found_min	# for (int j = i; j < size; j++)
+			
+			sll $t4, $t3, 2				# $t4 = j * 4 (used for offset)
+			add $s1, $a1, $t4			# $s1 = new offset address for a[j]
+			lw $t5, 0($s1)				# $t5 = a[j]
+			addi $t3, $t3, 1			# Increment j counter
+			
+			blt $t2, $t5, for_j_loop		# if (a[i] > a[j])
+			move $t2, $t5				# min = $t5	#a[i] will hold min, so we update it here
+			move $s2, $s1				# save memory address of min
+			
+			j for_j_loop
+			
+	selection_sort_found_min:
+		lw $t6, 0($s0)		# $t6 = temp
+		sw $t6, 0($s2)		# a[j] = temp
+		sw $t2, 0($s0)		# a[i] = min
+		
+		addi $t0, $t0, 1	# i++
+
+		j for_i_loop
+	
+	end_selection_sort_loop:
+		# load items from stack
+		# load items from stack
+		lw $s0, 36($sp)
+		lw $s1, 32($sp)
+		lw $s2, 28($sp)
+		lw $t0, 24($sp)
+		lw $t1, 20($sp)
+		lw $t2, 16($sp)
+		lw $t3, 12($sp)
+		lw $t4, 8($sp)
+		lw $t5, 4($sp)
+		lw $t6, 0($sp)
+		add $sp, $sp, 40
+		j print
+
+# code written by Grecia Alvarado
+bubble_sort:
+# a1 = base address of array
+# a2 = size
+
+	li $t0, 0			# $t0 = 0 (using $t0 as i)
+	for_i_loop_:
+		addi $t0, $t0, 1		#i++
+		bgt $t0, $a2, print		# for (int i = 0; i < size; i++) #this is not a procedure so just jump directly to print
+		
+		li $t8, 0			#set $t8 as j=0
+		for_j_loop_:
+			bge $t8, $a2, for_i_loop_		#for(int j=0; j<size; j++)
+		
+			addi $t8, $t8, 1			#increment j counter
+			
+			sll $t1, $t8, 2				# j*4 
+			add $t1, $a1, $t1			# create offset address
+			
+			lw $t2, -4($t1)				#$t2 = array[j-1]
+			lw $t5, 0($t1)				#t5 = array[j]
+			
+			blt $t2, $t5, for_j_loop_	# if array[j-1]<array[j], go to beginning of loop, otherwise continue
+			
+			#swap -- this code is read if a[j-1]>a[j]
+			sw $t2, 0($t1)			# a[j-1] = a[j]
+			sw $t5, -4($t1)			# a[j] = a[j-1]
+			
+			j for_j_loop_				#otherwise loop again and move onto next elements in array
+			
+			
+	
+		
+# code written by Rida Siddiqui
+insertion_sort:
+# a1 = base address of array
+# a2 = size
+
+	li $t0, 1		# i = 1
+	
+	outer_for_loop:
+	#for (int i = 1; i < length; i++)
+		bgt $t0, $a2, exit_outer_for_loop 	#if i > size, exit outerloop
+		sll $t1, $t0, 2				# i * 4
+		add $t1, $t1, $a1			# base + offset
+		lw $t2, 0($t1)				# $t2 = a[i] = value
+		addi $t3, $t0, -1 			# $t3 = j = i-1 
+
+		inner_for_loop:
+		#for (j = i-1; j>=0 && value < a[j]; j--)
+			blt $t3, $zero, exit_inner_for_loop 	# if j is less than 0, exit innerloop
+			sll $t4, $t3, 2 			# j * 4
+			add $t4, $t4, $a1			# offset + base
+			lw $t5, 0($t4) 				# $t5 = a[j]
+	
+			bge $t2, $t5, exit_inner_for_loop	#if value >= a[j], exit innerloop
+			addi $t6, $t3, 1			# $t6 = j + 1
+			sll $t6, $t6, 2				# (j+1) * 4
+			add $t6, $t6, $a1			# offset + base
+			sw $t5, 0($t6)				# a[j+1] = a[j]
+			addi $t3, $t3, -1			# j--
+			j inner_for_loop
+
+	exit_inner_for_loop:
+		addi $t6, $t3, 1			# $t6 = j+1
+		sll $t6, $t6, 2				# (j+1) * 4
+		add $t6, $t6, $a1			# offset + base
+		sw $t2, 0($t6)				# a[j+1] = value
+		addi $t0, $t0, 1			# i++
+		j outer_for_loop
+
+	exit_outer_for_loop:
+		j print
+
+
+print:
+	#print final message:
+	la $a0, final 	# print(final)
+	li $v0, 4
+	syscall
+	
+	move $a1, $s0			# $a1 = array
+	move $a2, $s1			# $a2 = size
+	
+	li $t0, 0
+	printing_loop:
+		beq $t0, $a2, exit	# for (int i = 0; i < size; i++)
+		
+		sll $t1, $t0, 2		# $t1 = i ** 4
+		add $s3, $a1, $t1	# $s3 = base address of a[i]
+		lw $a0, 0($s3)		# $a0 = a[i]
+		li $v0, 1		# print(a[i]
+		syscall
+		
+		# Print whitespace
+		li $a0, 32
+		li $v0, 11
+		syscall
+		
+		addi $t0, $t0, 1	# i++
+		
+		j printing_loop
+
+verify1:
+# Setup to for verification, push items to the stack
+	addi $sp, $sp, -12
+	sw $t0, 8($sp)
+	sw $t1, 4($sp)
+	sw $t3, 0($sp)
+	j verify2
+
+verify2:
+# This function goes to the end of out string
+# The end of the string is a terminal byte with ascii value 0
+# The byte before the end is the "\n" character
+	lb $t2, 0($t0)			# load byte address (char of string)
+	beqz $t2, convertSetup		# if 0, hit terminal bit, end
+	add $t0, $t0, 1			# advance byte address
+	add $t3, $t3, 1			# i++
+	j verify2
+
+convertSetup:
+# Set up for convertToInt
+	li $t1, 0			# reset counter
+	li $v0, 0			# $v0 = sum
+	addi $t3, $t3, -1		# $t3 = terminal bit, move back to last char
+	j convertToInt
+
+convertToInt:
+	lbu $t0, stringInput($t1)	# load byte
+	beq $t1, $t3, jumpBack		# check if null terminator
+	beq $t0, 45, convertToIntNeg	# string is potenitally negative, switch to a negative number
+	bltu $t0, 48, errors		# checking if not int
+	bgtu $t0, 57, errors		# checking if not int
+	addi $t0, $t0, -48		# convert ascii to int
+	mul $v0, $v0, 10		# sum += 10
+	add $v0, $v0, $t0		# add digit to sum
+	addi $t1, $t1, 1		# increment counter + address
+	j convertToInt
+
+convertToIntNeg:
+	addi $t1, $t1, 1			# increment counter + address
+	lbu $t0, stringInput($t1)		# load byte 
+	beq $t1, $t3, jumpBackNeg		# check if null terminator
+	bltu $t0, 48, errors			# checking if not int
+	bgtu $t0, 57, errors			# checking if not int
+	addi $t0, $t0, -48			# convert ascii to int
+	mul $v0, $v0, 10			# sum += 10
+	add $v0, $v0, $t0			# add digit to sum
+	j convertToIntNeg
+
+jumpBack:
+	# Jump back to main function call
+	lw $t0, 8($sp)
+	lw $t1, 4($sp)
+	lw $t2, 0($sp)
+	addi $sp, $sp, 12
+	
+	jr $ra
+	
+jumpBackNeg:
+	# Jump back to main function call
+	lw $t0, 8($sp)
+	lw $t1, 4($sp)
+	lw $t2, 0($sp)
+	addi $sp, $sp, 12
+	
+	sub $v0, $0, $v0			# $v0 = 0 - $v0 (Turns number into negative)
+	
+	jr $ra
+
+errors:
+# If there is character input in our string, exit program
+	la $a0, error
+	li $v0, 4
+	syscall
+	 
+	j exit
